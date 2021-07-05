@@ -27,8 +27,19 @@ import android.widget.Toast;
 public class MainActivity extends AppCompatActivity{
 
 	MediaProjectionManager projectionManager;
+	MediaProjection mediaProjection;
 	ImageReader imageReader;
-	DisplayMetrics metrics;
+	VirtualDisplay virtualDisplay;
+
+	class Screen{
+		int w = 0;
+		int h = 0;
+		void set( int w, int h ){
+			this.w = w;
+			this.h = h;
+		}
+	}
+	Screen screen = new Screen();
 
 	@Override
 	protected void onCreate( Bundle savedInstanceState ){
@@ -47,21 +58,22 @@ public class MainActivity extends AppCompatActivity{
 			public void onActivityResult( ActivityResult result ){
 				Log.d( "■", "launcherStartActivityForResult#onActivityResult()" );
 				if( result.getResultCode() == Activity.RESULT_OK ){
-					MediaProjection mediaProjection = projectionManager.getMediaProjection(
+					mediaProjection = projectionManager.getMediaProjection(
 						result.getResultCode() // Activity.RESULT_OK
 					,	result.getData() // Intent
 					);
 
-					metrics = getResources().getDisplayMetrics();
+					DisplayMetrics metrics = getResources().getDisplayMetrics();
+					screen.set( metrics.widthPixels, metrics.heightPixels );
 					imageReader = ImageReader.newInstance(
-						metrics.widthPixels
-					,	metrics.heightPixels
+						screen.w
+					,	screen.h
 					,	android.graphics.PixelFormat.RGBA_8888//×RGB_565,RGBA_4444
-					,	5 //max images
+					,	1 //max images
 					);
-					VirtualDisplay virtualDisplay = mediaProjection.createVirtualDisplay( "Virtual"
-					,	metrics.widthPixels
-					,	metrics.heightPixels
+					virtualDisplay = mediaProjection.createVirtualDisplay( "Virtual"
+					,	screen.w
+					,	screen.h
 					,	metrics.densityDpi
 					,	DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR
 					,	imageReader.getSurface() // Surface
@@ -85,11 +97,33 @@ public class MainActivity extends AppCompatActivity{
 		int rowStride = planes[0].getRowStride();//1ラインのバイト数
 		int pixelStride = planes[0].getPixelStride();//1ピクセルのバイト数 例4
 		Log.d( "■", String.format( "getRowStride()=%d,getPixelStride()=%d", rowStride, pixelStride ) );
-		int rowPadding = rowStride - pixelStride * metrics.widthPixels;
-		Log.d( "■", String.format( "rowPadding=%d", rowPadding ) );
-		Bitmap bitmap = Bitmap.createBitmap(//Image.Plane幅が広い？
-			metrics.widthPixels + rowPadding / pixelStride
-		,	metrics.heightPixels
+
+		int w = rowStride/pixelStride;
+		if( screen.w != w ){//Image.Plane幅広い為 ImageReader VirtualDisplay作り直す
+			screen.set( w, image.getHeight() );
+			virtualDisplay.release();
+			DisplayMetrics metrics = getResources().getDisplayMetrics();
+			imageReader = ImageReader.newInstance(
+				screen.w
+			,	screen.h
+			,	android.graphics.PixelFormat.RGBA_8888//×RGB_565,RGBA_4444
+			,	1 //max images
+			);
+			virtualDisplay = mediaProjection.createVirtualDisplay( "Virtual"
+			,	screen.w
+			,	screen.h
+			,	metrics.densityDpi
+			,	DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR
+			,	imageReader.getSurface() // Surface
+			,	null // Callback
+			,	null // Handler
+			);
+			return;
+		}
+
+		Bitmap bitmap = Bitmap.createBitmap(
+			screen.w
+		,	screen.h
 		,	Bitmap.Config.ARGB_8888//deprecated in API level 29〇ARGB_4444,×RGB_565
 		);
 		bitmap.copyPixelsFromBuffer( /*java.nio.ByteBuffer*/ planes[0].getBuffer() );
