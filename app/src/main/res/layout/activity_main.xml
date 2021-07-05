@@ -13,14 +13,16 @@
 		android:id="@+id/textView"
 		android:layout_width="wrap_content"
 		android:layout_height="wrap_content"
-		android:text="Hello World!"
+		android:text="click here!"
+		android:onClick="onClick"
 	/>
-	<SurfaceView
-		android:id="@+id/surfaceView"
+	<ImageView
+		android:id="@+id/imageView"
 		android:layout_width="wrap_content"
 		android:layout_height="wrap_content"
 		android:layout_below="@+id/textView"
-	>
-	</SurfaceView>
+		android:layout_centerHorizontal="true"
+		android:onClick="onClick"
+	/>
 
 </RelativeLayout>
