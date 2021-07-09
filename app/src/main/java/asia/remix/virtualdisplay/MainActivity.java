@@ -29,6 +29,7 @@ public class MainActivity extends AppCompatActivity{
 	MediaProjectionManager projectionManager;
 	MediaProjection mediaProjection;
 	ImageReader imageReader;
+	android.os.Handler handlerBackground = new android.os.Handler();
 	VirtualDisplay virtualDisplay;
 
 	class Screen{
@@ -90,16 +91,18 @@ public class MainActivity extends AppCompatActivity{
 	);
 
 	public void onClick( View view ){
-		Image image = imageReader.acquireLatestImage();
-		Image.Plane[] planes = image.getPlanes();
-		Log.d( "■", String.format( "W%dxH%d,image.getFormat()=%d,planes=%d", image.getWidth(), image.getHeight(), image.getFormat(), planes.length ) );
+		Image image = null;
+		try{
+			image = imageReader.acquireLatestImage();//imageReader.acquireNextImage();
+			if( image == null ) return;
+			Image.Plane[] planes = image.getPlanes();
+			Log.d( "■", String.format( "W%dxH%d,image.getFormat()=%d,planes=%d", image.getWidth(), image.getHeight(), image.getFormat(), planes.length ) );
 
-		int rowStride = planes[0].getRowStride();//1ラインのバイト数
-		int pixelStride = planes[0].getPixelStride();//1ピクセルのバイト数 例4
-		Log.d( "■", String.format( "getRowStride()=%d,getPixelStride()=%d", rowStride, pixelStride ) );
+			int rowStride = planes[0].getRowStride();//1ラインのバイト数
+			int pixelStride = planes[0].getPixelStride();//1ピクセルのバイト数 例4
+			Log.d( "■", String.format( "getRowStride()=%d,getPixelStride()=%d", rowStride, pixelStride ) );
 
-		int w = rowStride/pixelStride;
-		if( screen.w != w ){//Image.Plane幅広い為 ImageReader VirtualDisplay作り直す
+			int w = rowStride/pixelStride;
 			screen.set( w, image.getHeight() );
 			virtualDisplay.release();
 			DisplayMetrics metrics = getResources().getDisplayMetrics();
@@ -107,9 +110,10 @@ public class MainActivity extends AppCompatActivity{
 				screen.w
 			,	screen.h
 			,	android.graphics.PixelFormat.RGBA_8888//×RGB_565,RGBA_4444
-			,	1 //max images
+			,	5 //max images 1:W/ImageReader_JNI: Unable to acquire a buffer item, very likely client tried to acquire more than maxImages buffers
 			);
-			virtualDisplay = mediaProjection.createVirtualDisplay( "Virtual"
+			imageReader.setOnImageAvailableListener( onImageAvailableListener, handlerBackground );
+			virtualDisplay = mediaProjection.createVirtualDisplay( "Virtual main"
 			,	screen.w
 			,	screen.h
 			,	metrics.densityDpi
@@ -118,18 +122,39 @@ public class MainActivity extends AppCompatActivity{
 			,	null // Callback
 			,	null // Handler
 			);
-			return;
+		}finally{
+			if( image != null ){
+				image.close();// W/ImageReader_JNI: Unable to acquire a buffer item, very likely client tried to acquire more than maxImages buffers
+			}
 		}
-
-		Bitmap bitmap = Bitmap.createBitmap(
-			screen.w
-		,	screen.h
-		,	Bitmap.Config.ARGB_8888//deprecated in API level 29〇ARGB_4444,×RGB_565
-		);
-		bitmap.copyPixelsFromBuffer( /*java.nio.ByteBuffer*/ planes[0].getBuffer() );
-		image.close();
-
-		ImageView imageView = (ImageView)findViewById( R.id.imageView );
-		imageView.setImageBitmap( bitmap );
 	}
+
+	ImageReader.OnImageAvailableListener onImageAvailableListener = new ImageReader.OnImageAvailableListener(){
+		@Override
+		public void onImageAvailable( ImageReader ir ){// != this.imageReader -> Error
+			Image image = null;
+			try{
+				image = ir.acquireLatestImage();//ir.acquireNextImage();?
+				if( image == null ) return;
+				Image.Plane[] planes = image.getPlanes();
+
+				int rowStride = planes[0].getRowStride();//1ラインのバイト数
+				int pixelStride = planes[0].getPixelStride();//1ピクセルのバイト数 例4
+
+				Bitmap bitmap = Bitmap.createBitmap(
+					screen.w
+				,	screen.h
+				,	Bitmap.Config.ARGB_8888//deprecated in API level 29〇ARGB_4444,×RGB_565
+				);
+				bitmap.copyPixelsFromBuffer( /*java.nio.ByteBuffer*/ planes[0].getBuffer() );
+
+				ImageView imageView = (ImageView)findViewById( R.id.imageView );
+				imageView.setImageBitmap( bitmap );
+			}finally{
+				if( image != null ){
+					image.close();// W/ImageReader_JNI: Unable to acquire a buffer item, very likely client tried to acquire more than maxImages buffers
+				}
+			}
+		}
+	};
 }
