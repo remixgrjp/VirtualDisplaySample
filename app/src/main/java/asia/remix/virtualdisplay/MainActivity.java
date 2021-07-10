@@ -41,14 +41,12 @@ public class MainActivity extends AppCompatActivity{
 		}
 	}
 	Screen screen = new Screen();
-	boolean isFinish = false;
 
 	@Override
 	protected void onCreate( Bundle savedInstanceState ){
 		super.onCreate( savedInstanceState );
 		setContentView( R.layout.activity_main );
 
-		isFinish = false;
 		projectionManager = (MediaProjectionManager)getSystemService( MEDIA_PROJECTION_SERVICE );
 		Intent captureIntent = projectionManager.createScreenCaptureIntent();
 		launcherStartActivityForResult.launch( captureIntent );
@@ -72,9 +70,9 @@ public class MainActivity extends AppCompatActivity{
 						screen.w
 					,	screen.h
 					,	android.graphics.PixelFormat.RGBA_8888//×RGB_565,RGBA_4444
-					,	1 //max images
+					,	5 //max images 1:W/ImageReader_JNI: Unable to acquire a lockedBuffer, very likely client tries to lock more than maxImages buffers
 					);
-					imageReader.setOnImageAvailableListener( onImageAvailableListener1, handlerBackground );
+					imageReader.setOnImageAvailableListener( onImageAvailableListener, handlerBackground );
 					virtualDisplay = mediaProjection.createVirtualDisplay( "Virtual"
 					,	screen.w
 					,	screen.h
@@ -93,55 +91,7 @@ public class MainActivity extends AppCompatActivity{
 		} 
 	);
 
-	ImageReader.OnImageAvailableListener onImageAvailableListener1 = new ImageReader.OnImageAvailableListener(){
-		@Override
-		public void onImageAvailable( ImageReader ir ){// != this.imageReader -> Error
-			Log.d( "▲", "onImageAvailable()" );
-
-			if( isFinish ) return;
-			Image image = null;
-			try{
-				image = ir.acquireLatestImage();//ir.acquireNextImage();
-				if( image == null ) return;
-				Image.Plane[] planes = image.getPlanes();
-				Log.d( "■", String.format( "W%dxH%d,image.getFormat()=%d,planes=%d", image.getWidth(), image.getHeight(), image.getFormat(), planes.length ) );
-
-				int rowStride = planes[0].getRowStride();//1ラインのバイト数
-				int pixelStride = planes[0].getPixelStride();//1ピクセルのバイト数 例4
-				Log.d( "■", String.format( "getRowStride()=%d,getPixelStride()=%d", rowStride, pixelStride ) );
-
-				int w = rowStride/pixelStride;
-				screen.set( w, image.getHeight() );
-				virtualDisplay.release();
-				isFinish = true;
-				Log.d( "▼", "onImageAvailable()" );
-				DisplayMetrics metrics = getResources().getDisplayMetrics();
-				imageReader = ImageReader.newInstance(
-					screen.w
-				,	screen.h
-				,	android.graphics.PixelFormat.RGBA_8888//×RGB_565,RGBA_4444
-				,	5 //max images
-				);
-				imageReader.setOnImageAvailableListener( onImageAvailableListener2, handlerBackground );
-				virtualDisplay = mediaProjection.createVirtualDisplay( "Virtual main"
-				,	screen.w
-				,	screen.h
-				,	metrics.densityDpi
-				,	DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR
-				,	imageReader.getSurface() // Surface
-				,	null // Callback
-				,	null // Handler
-				);
-			}finally{
-				if( image != null ){
-					image.close();//忘れるとW/ImageReader_JNI: Unable to acquire a buffer item, very likely client tried to acquire more than maxImages buffers
-				}
-			}
-
-		}
-	};
-
-	ImageReader.OnImageAvailableListener onImageAvailableListener2 = new ImageReader.OnImageAvailableListener(){
+	ImageReader.OnImageAvailableListener onImageAvailableListener = new ImageReader.OnImageAvailableListener(){
 		@Override
 		public void onImageAvailable( ImageReader ir ){// != this.imageReader -> Error
 			Image image = null;
@@ -152,6 +102,32 @@ public class MainActivity extends AppCompatActivity{
 
 				int rowStride = planes[0].getRowStride();//1ラインのバイト数
 				int pixelStride = planes[0].getPixelStride();//1ピクセルのバイト数 例4
+
+				int w = rowStride/pixelStride;
+				if( screen.w != w ){//Image.Plane幅広い為
+					Log.d( "■", String.format( "%dx%d", screen.w, screen.h ) );
+					screen.set( w, image.getHeight() );
+					Log.d( "■", String.format( "remake[ImageReader,VirtualDisplay]%dx%d", screen.w, screen.h ) );
+					virtualDisplay.release();
+					DisplayMetrics metrics = getResources().getDisplayMetrics();
+					imageReader = ImageReader.newInstance(
+						screen.w
+					,	screen.h
+					,	android.graphics.PixelFormat.RGBA_8888//×RGB_565,RGBA_4444
+					,	5 //max images 1:W/ImageReader_JNI: Unable to acquire a lockedBuffer, very likely client tries to lock more than maxImages buffers
+					);
+					imageReader.setOnImageAvailableListener( onImageAvailableListener, handlerBackground );
+					virtualDisplay = mediaProjection.createVirtualDisplay( "Virtual"
+					,	screen.w
+					,	screen.h
+					,	metrics.densityDpi
+					,	DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR
+					,	imageReader.getSurface() // Surface
+					,	null // Callback
+					,	null // Handler
+					);
+					return;
+				}
 
 				Bitmap bitmap = Bitmap.createBitmap(
 					screen.w
