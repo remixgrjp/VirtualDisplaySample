@@ -47,9 +47,22 @@ public class MainActivity extends AppCompatActivity{
 		super.onCreate( savedInstanceState );
 		setContentView( R.layout.activity_main );
 
+		Intent intent = new Intent( getApplication(), MainService.class );
+		if( android.os.Build.VERSION.SDK_INT >= 26 ){
+			startForegroundService( intent );
+		}else{
+			startService( intent );
+		}
+
 		projectionManager = (MediaProjectionManager)getSystemService( MEDIA_PROJECTION_SERVICE );
 		Intent captureIntent = projectionManager.createScreenCaptureIntent();
 		launcherStartActivityForResult.launch( captureIntent );
+	}
+
+	@Override
+	protected void onDestroy(){//onPause() → onStop() → onDestroy()
+		super.onDestroy();
+		stopService( new Intent( getApplication(), MainService.class ) );
 	}
 
 	ActivityResultLauncher<Intent> launcherStartActivityForResult = registerForActivityResult(

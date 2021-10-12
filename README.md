@@ -17,5 +17,7 @@ Samsung Galaxy S7 edge (Andorid 7.0)
 
 ASUS_X01AD(Android 9)
 
+Emulator Pixel3 API29
+
 ## article
 https://www.remix.asia/blog/remix/2020/12/virtualdisplay.html
